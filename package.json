@@ -1,0 +1,12 @@
+{
+    "devDependencies":  {
+                            "terser":  "^5.16.0"
+                        },
+    "description":  "Voice-controlled browser assistant",
+    "name":  "voice-brain-assistant",
+    "version":  "1.0.0",
+    "scripts":  {
+                    "dev":  "python -m http.server 8080",
+                    "build":  "terser src/voice-assistant.js -o dist/voice-assistant.js -c -m"
+                }
+}
