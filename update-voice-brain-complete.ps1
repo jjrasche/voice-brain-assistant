@@ -1,6 +1,6 @@
 # Simple Voice Brain Update Script
 param(
-    [string]$RepoPath = "..\",
+    [string]$RepoPath = ".",
     [switch]$Deploy,
     [string]$CommitMessage = "Update Voice Brain with enhanced UI and Neo4j module"
 )
