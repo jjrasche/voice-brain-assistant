@@ -49,11 +49,11 @@
     
     <h2>Desktop Installation</h2>
     <p>Drag this button to your bookmarks bar:</p>
-    <a href="javascript:(function(){const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);const baseUrl = 'https://jjrasche.github.io/voice-brain';if (isMobile) {if ('standalone' in navigator && navigator.standalone) {alert('Voice Brain already active!');} else {window.open(baseUrl + '?install=true', '_blank');}} else {if (window.vbCleanup) window.vbCleanup();const script = document.createElement('script');script.src = baseUrl + '/desktop.js?v=' + Date.now();script.onerror = () => alert('Failed to load Voice Brain');script.onload = () => {console.log('Voice Brain Desktop loaded');if (window.initVoiceBrain) {window.initVoiceBrain({mode:'desktop', keepAlive:true, ai:{endpoint:'', key:''}});}};document.head.appendChild(script);}})();" class="bookmarklet">Voice Brain</a>
+    <a href="javascript:(function(){const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);const baseUrl = 'https://jjrasche.github.io/voice-brain-assistant';if (isMobile) {if ('standalone' in navigator && navigator.standalone) {alert('Voice Brain already active!');} else {window.open(baseUrl + '?install=true', '_blank');}} else {if (window.vbCleanup) window.vbCleanup();const script = document.createElement('script');script.src = baseUrl + '/desktop.js?v=' + Date.now();script.onerror = () => alert('Failed to load Voice Brain');script.onload = () => {console.log('Voice Brain Desktop loaded');if (window.initVoiceBrain) {window.initVoiceBrain({mode:'desktop', keepAlive:true, ai:{endpoint:'', key:''}});}};document.head.appendChild(script);}})();" class="bookmarklet">Voice Brain</a>
     
     <h2>Mobile Installation</h2>
     <p>Copy this code and add as a bookmark:</p>
-    <div class="code" onclick="copyCode()">javascript:(function(){const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);const baseUrl = 'https://jjrasche.github.io/voice-brain';if (isMobile) {if ('standalone' in navigator && navigator.standalone) {alert('Voice Brain already active!');} else {window.open(baseUrl + '?install=true', '_blank');}} else {if (window.vbCleanup) window.vbCleanup();const script = document.createElement('script');script.src = baseUrl + '/desktop.js?v=' + Date.now();script.onerror = () => alert('Failed to load Voice Brain');script.onload = () => {console.log('Voice Brain Desktop loaded');if (window.initVoiceBrain) {window.initVoiceBrain({mode:'desktop', keepAlive:true, ai:{endpoint:'', key:''}});}};document.head.appendChild(script);}})();</div>
+    <div class="code" onclick="copyCode()">javascript:(function(){const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);const baseUrl = 'https://jjrasche.github.io/voice-brain-assistant';if (isMobile) {if ('standalone' in navigator && navigator.standalone) {alert('Voice Brain already active!');} else {window.open(baseUrl + '?install=true', '_blank');}} else {if (window.vbCleanup) window.vbCleanup();const script = document.createElement('script');script.src = baseUrl + '/desktop.js?v=' + Date.now();script.onerror = () => alert('Failed to load Voice Brain');script.onload = () => {console.log('Voice Brain Desktop loaded');if (window.initVoiceBrain) {window.initVoiceBrain({mode:'desktop', keepAlive:true, ai:{endpoint:'', key:''}});}};document.head.appendChild(script);}})();</div>
     
     <button onclick="copyCode()">📋 Copy Code</button>
     
@@ -66,7 +66,7 @@
         
         // Copy function
         function copyCode() {
-            const code = 'javascript:(function(){const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);const baseUrl = 'https://jjrasche.github.io/voice-brain';if (isMobile) {if ('standalone' in navigator && navigator.standalone) {alert('Voice Brain already active!');} else {window.open(baseUrl + '?install=true', '_blank');}} else {if (window.vbCleanup) window.vbCleanup();const script = document.createElement('script');script.src = baseUrl + '/desktop.js?v=' + Date.now();script.onerror = () => alert('Failed to load Voice Brain');script.onload = () => {console.log('Voice Brain Desktop loaded');if (window.initVoiceBrain) {window.initVoiceBrain({mode:'desktop', keepAlive:true, ai:{endpoint:'', key:''}});}};document.head.appendChild(script);}})();';
+            const code = 'javascript:(function(){const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);const baseUrl = \'https://jjrasche.github.io/voice-brain-assistant\';if (isMobile) {if (\'standalone\' in navigator && navigator.standalone) {alert(\'Voice Brain already active!\');} else {window.open(baseUrl + \'?install=true\', \'_blank\');}} else {if (window.vbCleanup) window.vbCleanup();const script = document.createElement(\'script\');script.src = baseUrl + \'/desktop.js?v=\' + Date.now();script.onerror = () => alert(\'Failed to load Voice Brain\');script.onload = () => {console.log(\'Voice Brain Desktop loaded\');if (window.initVoiceBrain) {window.initVoiceBrain({mode:\'desktop\', keepAlive:true, ai:{endpoint:\'\', key:\'\'}});}};document.head.appendChild(script);}})();';
             if (navigator.clipboard) {
                 navigator.clipboard.writeText(code).then(() => {
                     alert('Bookmarklet code copied!');
@@ -87,7 +87,7 @@
         if (isMobile && !window.location.search.includes('stay')) {
             setTimeout(() => {
                 if (confirm('Open Voice Brain app?')) {
-                    window.location.href = '/index.html';
+                    window.location.href = '/voice-brain-assistant/index.html';
                 }
             }, 2000);
         }
