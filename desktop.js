@@ -42,18 +42,31 @@
         }
         
         init() {
-            console.log(`🔥 Voice Brain Desktop v${VERSION} initializing...`);
-            this.injectStyles();
-            this.createUI();
-            this.setupRecognition();
-            this.bindEvents();
-            this.loadModules();
-            
-            // Show version notification
-            this.showVersionNotification();
-            
-            // Auto-start
-            setTimeout(() => this.start(), 500);
+            try {
+                console.log(`🔥 Voice Brain Desktop v${VERSION} initializing...`);
+                this.debugLog('🔥 Voice Brain Desktop v' + VERSION + ' initializing...');
+                this.injectStyles();
+                this.createUI();
+                this.setupRecognition();
+                this.bindEvents();
+                this.loadModules();
+                
+                // Show version notification
+                this.showVersionNotification();
+                
+                // Auto-start with delay
+                setTimeout(() => {
+                    try {
+                        this.debugLog('🎯 Auto-starting voice recognition...');
+                        this.start();
+                    } catch (error) {
+                        this.debugLog('❌ Error in auto-start: ' + error.message);
+                    }
+                }, 1000);
+            } catch (error) {
+                console.error('❌ Fatal error in init:', error);
+                this.debugLog('❌ Fatal error in init: ' + error.message);
+            }
         }
         
         injectStyles() {
@@ -334,25 +347,25 @@
                 
                 #vb-transcript-overlay {
                     position: fixed;
-                    top: 20px;
-                    left: 20px;
-                    right: 20px;
-                    background: rgba(0, 0, 0, 0.9);
+                    top: 10px;
+                    right: 10px;
+                    width: 350px;
+                    height: 200px;
+                    background: rgba(0, 0, 0, 0.95);
                     color: white;
-                    padding: 20px;
-                    border-radius: 12px;
+                    padding: 10px;
+                    border-radius: 8px;
                     border: 2px solid #4a90e2;
                     font-family: -apple-system, system-ui, sans-serif;
-                    font-size: 18px;
-                    line-height: 1.5;
+                    font-size: 10px;
+                    line-height: 1.2;
                     z-index: 999998;
-                    max-height: 300px;
                     overflow-y: auto;
                     opacity: 0;
                     transform: translateY(-20px);
                     transition: all 0.3s ease;
-                    pointer-events: none;
-                    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+                    pointer-events: all;
+                    box-shadow: 0 5px 20px rgba(0,0,0,0.8);
                 }
                 
                 #vb-transcript-overlay.show {
@@ -362,13 +375,14 @@
                 
                 #vb-transcript-overlay.listening {
                     border-color: #4a90e2;
-                    box-shadow: 0 0 20px rgba(74, 144, 226, 0.3);
+                    box-shadow: 0 0 20px rgba(74, 144, 226, 0.5);
                 }
                 
                 .vb-transcript-text {
-                    margin-bottom: 10px;
-                    padding: 8px 0;
+                    margin-bottom: 8px;
+                    padding: 4px 0;
                     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                    word-wrap: break-word;
                 }
                 
                 .vb-transcript-text:last-child {
@@ -379,10 +393,12 @@
                 .vb-transcript-interim {
                     color: #999;
                     font-style: italic;
+                    opacity: 0.8;
                 }
                 
                 .vb-transcript-final {
                     color: #fff;
+                    font-weight: normal;
                 }
                 
                 .vb-transcript-command {
@@ -391,45 +407,56 @@
                 }
                 
                 .vb-transcript-timestamp {
-                    font-size: 12px;
+                    font-size: 9px;
                     color: #666;
                     float: right;
+                    margin-left: 10px;
                 }
                 
                 .vb-transcript-header {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    margin-bottom: 15px;
-                    padding-bottom: 10px;
+                    margin-bottom: 10px;
+                    padding-bottom: 5px;
                     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
                 }
                 
                 .vb-transcript-title {
-                    font-size: 16px;
+                    font-size: 12px;
                     font-weight: bold;
                     color: #4a90e2;
                 }
                 
                 .vb-transcript-controls {
                     display: flex;
-                    gap: 10px;
+                    gap: 5px;
                 }
                 
                 .vb-transcript-btn {
                     background: rgba(255, 255, 255, 0.1);
                     border: 1px solid rgba(255, 255, 255, 0.2);
                     color: white;
-                    padding: 4px 8px;
-                    border-radius: 4px;
+                    padding: 2px 6px;
+                    border-radius: 3px;
                     cursor: pointer;
-                    font-size: 12px;
+                    font-size: 9px;
                     transition: all 0.2s;
-                    pointer-events: all;
                 }
                 
                 .vb-transcript-btn:hover {
                     background: rgba(255, 255, 255, 0.2);
+                }
+                
+                .vb-debug-text {
+                    color: #666;
+                    font-size: 9px;
+                    margin-bottom: 3px;
+                    font-family: monospace;
+                }
+                
+                .vb-debug-text span {
+                    color: #999;
                 }
             `;
             document.head.appendChild(style);
@@ -590,70 +617,103 @@
         }
         
         setupRecognition() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            
-            if (!SpeechRecognition) {
-                this.showFeedback('❌ Speech recognition not supported');
-                return;
-            }
-            
-            this.recognition = new SpeechRecognition();
-            this.recognition.continuous = true;
-            this.recognition.interimResults = true;
-            this.recognition.lang = 'en-US';
-            
-            this.recognition.onstart = () => {
-                this.isListening = true;
-                this.elements.orb.classList.add('listening');
-                this.elements.transcriptOverlay.classList.add('listening');
-                this.showTranscriptOverlay();
-                this.showFeedback('Listening...');
-                this.startKeepAlive();
-            };
-            
-            this.recognition.onend = () => {
-                this.isListening = false;
-                this.elements.orb.classList.remove('listening');
-                this.elements.transcriptOverlay.classList.remove('listening');
-                this.stopKeepAlive();
+            try {
+                this.debugLog('🔧 Setting up speech recognition...');
                 
-                // Auto-restart if configured
-                if (this.config.keepAlive) {
-                    setTimeout(() => {
-                        if (document.hasFocus()) {
-                            this.start();
-                        }
-                    }, 100);
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                
+                if (!SpeechRecognition) {
+                    this.debugLog('❌ Speech recognition not supported');
+                    this.showFeedback('❌ Speech recognition not supported');
+                    return;
                 }
-            };
-            
-            this.recognition.onresult = (event) => {
-                let finalTranscript = '';
-                let interimTranscript = '';
                 
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const transcript = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) {
-                        finalTranscript += transcript;
-                    } else {
-                        interimTranscript += transcript;
+                this.recognition = new SpeechRecognition();
+                this.recognition.continuous = true;
+                this.recognition.interimResults = true;
+                this.recognition.lang = 'en-US';
+                
+                this.debugLog('✅ Speech recognition configured');
+                
+                this.recognition.onstart = () => {
+                    try {
+                        this.debugLog('🎤 Recognition started');
+                        this.isListening = true;
+                        this.elements.orb.classList.add('listening');
+                        this.elements.transcriptOverlay.classList.add('listening');
+                        this.showTranscriptOverlay();
+                        this.showFeedback('🎤 Listening...');
+                        this.startKeepAlive();
+                    } catch (error) {
+                        this.debugLog('❌ Error in onstart: ' + error.message);
                     }
-                }
+                };
                 
-                // Update transcript overlay
-                this.updateTranscriptOverlay(finalTranscript, interimTranscript);
+                this.recognition.onend = () => {
+                    try {
+                        this.debugLog('🔴 Recognition ended');
+                        this.isListening = false;
+                        this.elements.orb.classList.remove('listening');
+                        this.elements.transcriptOverlay.classList.remove('listening');
+                        this.stopKeepAlive();
+                        
+                        // Auto-restart if configured
+                        if (this.config.keepAlive) {
+                            this.debugLog('🔄 Auto-restarting in 500ms...');
+                            setTimeout(() => {
+                                if (document.hasFocus() && !this.isListening) {
+                                    this.debugLog('🔄 Attempting restart...');
+                                    this.start();
+                                }
+                            }, 500);
+                        }
+                    } catch (error) {
+                        this.debugLog('❌ Error in onend: ' + error.message);
+                    }
+                };
                 
-                if (finalTranscript) {
-                    this.processCommand(finalTranscript.trim());
-                    this.addToHistory(finalTranscript);
-                }
-            };
-            
-            this.recognition.onerror = (event) => {
-                if (event.error !== 'no-speech') {
-                    this.showFeedback('❌ ' + event.error);
-                }
-            };
+                this.recognition.onresult = (event) => {
+                    try {
+                        let finalTranscript = '';
+                        let interimTranscript = '';
+                        
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                            const transcript = event.results[i][0].transcript;
+                            if (event.results[i].isFinal) {
+                                finalTranscript += transcript;
+                            } else {
+                                interimTranscript += transcript;
+                            }
+                        }
+                        
+                        // Update transcript overlay
+                        this.updateTranscriptOverlay(finalTranscript, interimTranscript);
+                        
+                        if (finalTranscript) {
+                            this.debugLog('📝 Final transcript: ' + finalTranscript);
+                            this.processCommand(finalTranscript.trim());
+                            this.addToHistory(finalTranscript);
+                        }
+                    } catch (error) {
+                        this.debugLog('❌ Error in onresult: ' + error.message);
+                    }
+                };
+                
+                this.recognition.onerror = (event) => {
+                    try {
+                        this.debugLog('❌ Recognition error: ' + event.error);
+                        if (event.error !== 'no-speech') {
+                            this.showFeedback('❌ ' + event.error);
+                        }
+                    } catch (error) {
+                        this.debugLog('❌ Error in onerror: ' + error.message);
+                    }
+                };
+                
+            } catch (error) {
+                this.debugLog('❌ Fatal error setting up recognition: ' + error.message);
+                this.showFeedback('❌ Failed to setup voice recognition');
+            }
         }
         
         bindEvents() {
@@ -919,15 +979,38 @@
         }
         
         start() {
-            if (this.recognition && !this.isListening) {
-                this.recognition.start();
+            try {
+                this.debugLog('🚀 Starting voice recognition...');
+                if (this.recognition && !this.isListening) {
+                    this.debugLog('🎯 Calling recognition.start()');
+                    this.recognition.start();
+                } else if (this.isListening) {
+                    this.debugLog('⚠️ Already listening, skipping start');
+                } else {
+                    this.debugLog('❌ No recognition object available');
+                }
+            } catch (error) {
+                this.debugLog('❌ Error starting recognition: ' + error.message);
+                this.showFeedback('❌ Failed to start listening');
             }
         }
         
         stop() {
-            if (this.recognition && this.isListening) {
-                this.recognition.stop();
-                this.isListening = false;
+            try {
+                this.debugLog('🛑 Stopping voice recognition...');
+                if (this.recognition && this.isListening) {
+                    this.debugLog('🎯 Calling recognition.stop()');
+                    this.recognition.stop();
+                    this.isListening = false;
+                    this.debugLog('✅ Recognition stopped');
+                } else if (!this.isListening) {
+                    this.debugLog('⚠️ Not listening, skipping stop');
+                } else {
+                    this.debugLog('❌ No recognition object available');
+                }
+            } catch (error) {
+                this.debugLog('❌ Error stopping recognition: ' + error.message);
+                this.showFeedback('❌ Failed to stop listening');
             }
         }
         
@@ -940,6 +1023,30 @@
             // Clean up events
             document.removeEventListener('keydown', this.keyHandler);
             document.removeEventListener('visibilitychange', this.visibilityHandler);
+        }
+        
+        // Add debug logging function
+        debugLog(message) {
+            console.log(`[VB Debug] ${message}`);
+            
+            // Also add to transcript overlay for visual debugging
+            if (this.elements?.transcriptOverlay) {
+                const content = document.getElementById('vb-transcript-content');
+                if (content) {
+                    const debugDiv = document.createElement('div');
+                    debugDiv.className = 'vb-debug-text';
+                    debugDiv.style.cssText = 'color: #666; font-size: 10px; margin-bottom: 5px;';
+                    debugDiv.innerHTML = `<span style="color: #999">${new Date().toLocaleTimeString()}</span> ${message}`;
+                    content.appendChild(debugDiv);
+                    content.scrollTop = content.scrollHeight;
+                    
+                    // Limit debug entries
+                    const debugEntries = content.querySelectorAll('.vb-debug-text');
+                    if (debugEntries.length > 20) {
+                        debugEntries[0].remove();
+                    }
+                }
+            }
         }
         
         // New methods for enhanced UI
@@ -1080,10 +1187,12 @@
         
         // Transcript overlay methods
         showTranscriptOverlay() {
+            this.debugLog('📺 Showing transcript overlay');
             this.elements.transcriptOverlay.classList.add('show');
         }
         
         hideTranscriptOverlay() {
+            this.debugLog('🙈 Hiding transcript overlay');
             this.elements.transcriptOverlay.classList.remove('show');
         }
         
@@ -1096,47 +1205,53 @@
         }
         
         updateTranscriptOverlay(finalTranscript, interimTranscript) {
-            const content = document.getElementById('vb-transcript-content');
-            if (!content) return;
-            
-            // Clear existing interim text
-            const existingInterim = content.querySelector('.vb-transcript-interim');
-            if (existingInterim) {
-                existingInterim.remove();
-            }
-            
-            // Add final transcript if we have it
-            if (finalTranscript) {
-                const finalDiv = document.createElement('div');
-                finalDiv.className = 'vb-transcript-text';
-                finalDiv.innerHTML = `
-                    <span class="vb-transcript-final">${finalTranscript}</span>
-                    <span class="vb-transcript-timestamp">${new Date().toLocaleTimeString()}</span>
-                `;
-                content.appendChild(finalDiv);
+            try {
+                const content = document.getElementById('vb-transcript-content');
+                if (!content) return;
                 
-                // Check if this looks like a command
-                const isCommand = this.isCommandLike(finalTranscript);
-                if (isCommand) {
-                    finalDiv.querySelector('.vb-transcript-final').className = 'vb-transcript-command';
+                // Clear existing interim text
+                const existingInterim = content.querySelector('.vb-transcript-interim');
+                if (existingInterim) {
+                    existingInterim.remove();
                 }
-            }
-            
-            // Add interim transcript if we have it
-            if (interimTranscript) {
-                const interimDiv = document.createElement('div');
-                interimDiv.className = 'vb-transcript-text vb-transcript-interim';
-                interimDiv.innerHTML = `<span class="vb-transcript-interim">${interimTranscript}</span>`;
-                content.appendChild(interimDiv);
-            }
-            
-            // Auto-scroll to bottom
-            content.scrollTop = content.scrollHeight;
-            
-            // Limit the number of transcript entries
-            const transcriptEntries = content.querySelectorAll('.vb-transcript-text:not(.vb-transcript-interim)');
-            if (transcriptEntries.length > 10) {
-                transcriptEntries[0].remove();
+                
+                // Add final transcript if we have it
+                if (finalTranscript) {
+                    this.debugLog('📝 Adding final transcript: ' + finalTranscript);
+                    const finalDiv = document.createElement('div');
+                    finalDiv.className = 'vb-transcript-text';
+                    finalDiv.innerHTML = `
+                        <span class="vb-transcript-final">${finalTranscript}</span>
+                        <span class="vb-transcript-timestamp">${new Date().toLocaleTimeString()}</span>
+                    `;
+                    content.appendChild(finalDiv);
+                    
+                    // Check if this looks like a command
+                    const isCommand = this.isCommandLike(finalTranscript);
+                    if (isCommand) {
+                        finalDiv.querySelector('.vb-transcript-final').className = 'vb-transcript-command';
+                    }
+                }
+                
+                // Add interim transcript if we have it
+                if (interimTranscript) {
+                    this.debugLog('💭 Adding interim transcript: ' + interimTranscript);
+                    const interimDiv = document.createElement('div');
+                    interimDiv.className = 'vb-transcript-text vb-transcript-interim';
+                    interimDiv.innerHTML = `<span class="vb-transcript-interim">${interimTranscript}</span>`;
+                    content.appendChild(interimDiv);
+                }
+                
+                // Auto-scroll to bottom
+                content.scrollTop = content.scrollHeight;
+                
+                // Limit the number of transcript entries
+                const transcriptEntries = content.querySelectorAll('.vb-transcript-text:not(.vb-transcript-interim)');
+                if (transcriptEntries.length > 10) {
+                    transcriptEntries[0].remove();
+                }
+            } catch (error) {
+                this.debugLog('❌ Error updating transcript overlay: ' + error.message);
             }
         }
         
@@ -1280,6 +1395,9 @@
             
             // Show temporary notification
             this.showFeedback(`Voice Brain v${VERSION} loaded - Updated: ${LAST_UPDATED.split(' ')[0]}`, 4000);
+            
+            // Always show transcript overlay on startup
+            this.showTranscriptOverlay();
             
             // Update status bar if available
             setTimeout(() => {
