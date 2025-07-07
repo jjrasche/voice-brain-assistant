@@ -1,0 +1,56 @@
+﻿{
+  "name": "Voice Brain Assistant",
+  "short_name": "Voice Brain",
+  "description": "AI-powered voice assistant that runs everywhere",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "categories": ["productivity", "utilities"],
+  "lang": "en-US",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAACXBIWXMAAAsTAAALEwEAmpwYAAAF8klEQVR4nO3da4hVZRTA8f+5M+PrlnfyNZqVqZmVL1LLzMrKXmZlZWUvs5dZ2cssM3tZSkgffffffH+/e+5z7nHPv3LXW2Zz5/2DBMAzDcM7ea+199ln7nEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCH+Tw0",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAACXBIWXMAAAsTAAALEwEAmpwYAAAF8klEQVR4nO3da4hVZRTA8f+5M+PrlnfyNZqVqZmVL1LLzMrKXmZlZWUvs5dZ2cssM3tZSkgffffffH+/e+5z7nHPv3LXW2Zz5/2DBMAzDcM7ea+199ln7nE",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "permissions": [
+    "microphone",
+    "persistent-storage",
+    "background-sync",
+    "notifications"
+  ],
+  "capture_links": "existing-client-navigate",
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "handle_links": "preferred",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Start Listening",
+      "url": "/?action=listen",
+      "description": "Start voice recognition immediately"
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "text": "text",
+      "url": "url"
+    }
+  }
+}

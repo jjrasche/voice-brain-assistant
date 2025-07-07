@@ -1,0 +1,399 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#000000">
+    <link rel="manifest" href="/manifest.json">
+    <title>Voice Brain</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: #000;
+            color: #fff;
+            font-family: -apple-system, system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+        
+        #main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        #voice-orb {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #4a90e2, #1a1a2e);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 0 100px rgba(74, 144, 226, 0.5);
+        }
+        
+        #voice-orb.listening {
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 200px rgba(74, 144, 226, 0.8);
+        }
+        
+        #voice-orb.listening::before {
+            content: '';
+            position: absolute;
+            inset: -20px;
+            border-radius: 50%;
+            background: radial-gradient(circle, transparent, rgba(74, 144, 226, 0.4));
+            animation: rotate 3s linear infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        #status {
+            margin-top: 40px;
+            font-size: 24px;
+            text-align: center;
+            min-height: 60px;
+        }
+        
+        #transcript {
+            position: absolute;
+            bottom: 100px;
+            left: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .control-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 20px;
+        }
+        
+        #install-prompt {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: #4a90e2;
+            padding: 15px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+            cursor: pointer;
+            animation: slideUp 0.5s ease;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(100px); }
+            to { transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button class="control-btn" onclick="toggleKeepAlive()">🔋</button>
+        <button class="control-btn" onclick="toggleOverlay()">🎯</button>
+        <button class="control-btn" onclick="showSettings()">⚙️</button>
+    </div>
+    
+    <div id="main">
+        <div id="voice-orb" onclick="toggleVoice()"></div>
+        <div id="status">Tap to start</div>
+    </div>
+    
+    <div id="transcript"></div>
+    
+    <div id="install-prompt" onclick="installPWA()">
+        📱 Install Voice Brain for better performance
+    </div>
+
+    <script>
+        // Global state
+        let recognition;
+        let isListening = false;
+        let keepAliveActive = true;
+        let wakeLock = null;
+        let silentAudio = null;
+        
+        // Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+        
+        // PWA Install
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('install-prompt').style.display = 'block';
+        });
+        
+        function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt = null;
+                document.getElementById('install-prompt').style.display = 'none';
+            }
+        }
+        
+        // Initialize Speech Recognition
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+            
+            // Android-specific optimizations
+            recognition.maxAlternatives = 1;
+            recognition.serviceURI = 'wss://www.google.com/speech-api/v2/recognize';
+            
+            recognition.onstart = () => {
+                isListening = true;
+                document.getElementById('voice-orb').classList.add('listening');
+                updateStatus('🎤 Listening...');
+                
+                // Haptic feedback
+                if ('vibrate' in navigator) {
+                    navigator.vibrate([50, 30, 50]);
+                }
+            };
+            
+            recognition.onend = () => {
+                isListening = false;
+                document.getElementById('voice-orb').classList.remove('listening');
+                updateStatus('Tap to start');
+                
+                // Auto-restart if keep-alive is on
+                if (keepAliveActive && document.hasFocus()) {
+                    setTimeout(() => recognition.start(), 100);
+                }
+            };
+            
+            recognition.onresult = (event) => {
+                let finalTranscript = '';
+                let interimTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+                
+                if (finalTranscript) {
+                    addTranscript(finalTranscript);
+                    processCommand(finalTranscript);
+                } else if (interimTranscript) {
+                    updateStatus('💭 ' + interimTranscript);
+                }
+            };
+            
+            recognition.onerror = (event) => {
+                console.error('Speech error:', event.error);
+                updateStatus('❌ ' + event.error);
+                
+                if (event.error === 'not-allowed') {
+                    updateStatus('🎤 Please enable microphone access');
+                }
+            };
+        }
+        
+        // Voice control
+        function toggleVoice() {
+            if (!recognition) return;
+            
+            if (isListening) {
+                recognition.stop();
+                stopKeepAlive();
+            } else {
+                recognition.start();
+                startKeepAlive();
+            }
+        }
+        
+        // Keep-alive mechanisms
+        function startKeepAlive() {
+            if (!keepAliveActive) return;
+            
+            // 1. Wake Lock
+            if ('wakeLock' in navigator) {
+                navigator.wakeLock.request('screen').then(lock => {
+                    wakeLock = lock;
+                    console.log('Wake lock active');
+                }).catch(err => console.error('Wake lock failed:', err));
+            }
+            
+            // 2. Silent Audio
+            if (!silentAudio) {
+                silentAudio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBShyw/Pedi4GI2ua59KwYRUKOZnY8tBwLQYjcMTy230yBSuEzvXfkU0KFWzA7OGdTg0PYqzn77ptHAUweM/03GwkBS+Gz/DbizEGHWq+8+mhVBAOX6/p8a1eGAg+l9n03GwkBSmDzPXgjEkIF2vE6+WdTg0PYqzn77ptHAU');
+                silentAudio.loop = true;
+                silentAudio.volume = 0.01;
+            }
+            silentAudio.play().catch(e => console.log('Silent audio failed:', e));
+            
+            // 3. NoSleep.js alternative
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+        }
+        
+        function stopKeepAlive() {
+            if (wakeLock) {
+                wakeLock.release();
+                wakeLock = null;
+            }
+            
+            if (silentAudio) {
+                silentAudio.pause();
+            }
+        }
+        
+        function handleVisibilityChange() {
+            if (document.visibilityState === 'visible' && isListening) {
+                recognition.start();
+            }
+        }
+        
+        function toggleKeepAlive() {
+            keepAliveActive = !keepAliveActive;
+            updateStatus(keepAliveActive ? '🔋 Keep-alive ON' : '🔋 Keep-alive OFF');
+        }
+        
+        // Process voice commands
+        function processCommand(text) {
+            const cmd = text.toLowerCase();
+            
+            // System commands
+            if (cmd.includes('battery')) {
+                checkBattery();
+            } else if (cmd.includes('time')) {
+                speak(new Date().toLocaleTimeString());
+            } else if (cmd.includes('overlay')) {
+                requestOverlay();
+            } else {
+                // Send to AI or execute custom commands
+                executeCommand(cmd);
+            }
+        }
+        
+        // Battery check
+        async function checkBattery() {
+            if ('getBattery' in navigator) {
+                const battery = await navigator.getBattery();
+                const level = Math.round(battery.level * 100);
+                const charging = battery.charging ? 'charging' : 'not charging';
+                speak(`Battery at ${level} percent, ${charging}`);
+            }
+        }
+        
+        // Text to speech
+        function speak(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.1;
+            utterance.pitch = 0.9;
+            speechSynthesis.speak(utterance);
+            addTranscript('🤖 ' + text);
+        }
+        
+        // Overlay request (Android WebView only)
+        function requestOverlay() {
+            if (window.Android && window.Android.requestOverlay) {
+                window.Android.requestOverlay();
+                updateStatus('🎯 Overlay requested');
+            } else {
+                updateStatus('❌ Overlay not available');
+            }
+        }
+        
+        // UI Updates
+        function updateStatus(text) {
+            document.getElementById('status').textContent = text;
+        }
+        
+        function addTranscript(text) {
+            const transcript = document.getElementById('transcript');
+            const entry = document.createElement('div');
+            entry.textContent = text;
+            entry.style.marginBottom = '10px';
+            transcript.appendChild(entry);
+            transcript.scrollTop = transcript.scrollHeight;
+        }
+        
+        // Custom command execution
+        function executeCommand(cmd) {
+            // Add your custom commands here
+            if (cmd.includes('debug')) {
+                const debug = {
+                    listening: isListening,
+                    keepAlive: keepAliveActive,
+                    wakeLock: !!wakeLock,
+                    audio: !!silentAudio
+                };
+                speak('Debug: ' + JSON.stringify(debug));
+            } else {
+                // Default: echo back
+                speak('You said: ' + cmd);
+            }
+        }
+        
+        // Physical button support
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'MediaPlayPause' || e.key === ' ') {
+                e.preventDefault();
+                toggleVoice();
+            }
+        });
+        
+        // Headphone button
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.setActionHandler('play', toggleVoice);
+            navigator.mediaSession.setActionHandler('pause', toggleVoice);
+        }
+        
+        // Start immediately if PWA
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            setTimeout(() => {
+                updateStatus('🚀 PWA Mode Active');
+                startKeepAlive();
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
