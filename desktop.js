@@ -1288,7 +1288,7 @@
                     statusText.textContent = `v${VERSION} - Ready`;
                 }
             }, 1000);
-        },
+        }
     }
     
     // Initialize
