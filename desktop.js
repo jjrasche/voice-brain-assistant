@@ -320,6 +320,106 @@
                     display: flex;
                     justify-content: space-between;
                 }
+                
+                #vb-transcript-overlay {
+                    position: fixed;
+                    top: 20px;
+                    left: 20px;
+                    right: 20px;
+                    background: rgba(0, 0, 0, 0.9);
+                    color: white;
+                    padding: 20px;
+                    border-radius: 12px;
+                    border: 2px solid #4a90e2;
+                    font-family: -apple-system, system-ui, sans-serif;
+                    font-size: 18px;
+                    line-height: 1.5;
+                    z-index: 999998;
+                    max-height: 300px;
+                    overflow-y: auto;
+                    opacity: 0;
+                    transform: translateY(-20px);
+                    transition: all 0.3s ease;
+                    pointer-events: none;
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+                }
+                
+                #vb-transcript-overlay.show {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+                
+                #vb-transcript-overlay.listening {
+                    border-color: #4a90e2;
+                    box-shadow: 0 0 20px rgba(74, 144, 226, 0.3);
+                }
+                
+                .vb-transcript-text {
+                    margin-bottom: 10px;
+                    padding: 8px 0;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                }
+                
+                .vb-transcript-text:last-child {
+                    border-bottom: none;
+                    margin-bottom: 0;
+                }
+                
+                .vb-transcript-interim {
+                    color: #999;
+                    font-style: italic;
+                }
+                
+                .vb-transcript-final {
+                    color: #fff;
+                }
+                
+                .vb-transcript-command {
+                    color: #4a90e2;
+                    font-weight: bold;
+                }
+                
+                .vb-transcript-timestamp {
+                    font-size: 12px;
+                    color: #666;
+                    float: right;
+                }
+                
+                .vb-transcript-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 15px;
+                    padding-bottom: 10px;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+                }
+                
+                .vb-transcript-title {
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: #4a90e2;
+                }
+                
+                .vb-transcript-controls {
+                    display: flex;
+                    gap: 10px;
+                }
+                
+                .vb-transcript-btn {
+                    background: rgba(255, 255, 255, 0.1);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    color: white;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    transition: all 0.2s;
+                    pointer-events: all;
+                }
+                
+                .vb-transcript-btn:hover {
+                    background: rgba(255, 255, 255, 0.2);
+                }
             `;
             document.head.appendChild(style);
         }
@@ -416,6 +516,24 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <div class="vb-command-section">
+                            <h4>🎤 Transcript</h4>
+                            <div class="vb-command-list">
+                                <div class="vb-command-item">
+                                    <strong>"show transcript"</strong> - Show transcript overlay
+                                </div>
+                                <div class="vb-command-item">
+                                    <strong>"hide transcript"</strong> - Hide transcript overlay
+                                </div>
+                                <div class="vb-command-item">
+                                    <strong>"clear transcript"</strong> - Clear transcript history
+                                </div>
+                                <div class="vb-command-item">
+                                    <strong>Ctrl+Shift+T</strong> - Toggle transcript overlay
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div id="vb-modules-tab" class="vb-tab-content">
@@ -439,7 +557,22 @@
             widget.appendChild(panel);
             document.body.appendChild(widget);
             
-            this.elements = { widget, orb, feedback, panel };
+            // Create transcript overlay
+            const transcriptOverlay = document.createElement('div');
+            transcriptOverlay.id = 'vb-transcript-overlay';
+            transcriptOverlay.innerHTML = `
+                <div class="vb-transcript-header">
+                    <div class="vb-transcript-title">🎤 Voice Transcript</div>
+                    <div class="vb-transcript-controls">
+                        <button class="vb-transcript-btn" onclick="window.vbDesktop.clearTranscript()">Clear</button>
+                        <button class="vb-transcript-btn" onclick="window.vbDesktop.toggleTranscriptOverlay()">Hide</button>
+                    </div>
+                </div>
+                <div id="vb-transcript-content"></div>
+            `;
+            document.body.appendChild(transcriptOverlay);
+            
+            this.elements = { widget, orb, feedback, panel, transcriptOverlay };
             
             // Start AI ping interval
             this.startAIPing();
@@ -461,6 +594,8 @@
             this.recognition.onstart = () => {
                 this.isListening = true;
                 this.elements.orb.classList.add('listening');
+                this.elements.transcriptOverlay.classList.add('listening');
+                this.showTranscriptOverlay();
                 this.showFeedback('Listening...');
                 this.startKeepAlive();
             };
@@ -468,6 +603,7 @@
             this.recognition.onend = () => {
                 this.isListening = false;
                 this.elements.orb.classList.remove('listening');
+                this.elements.transcriptOverlay.classList.remove('listening');
                 this.stopKeepAlive();
                 
                 // Auto-restart if configured
@@ -482,12 +618,19 @@
             
             this.recognition.onresult = (event) => {
                 let finalTranscript = '';
+                let interimTranscript = '';
                 
                 for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
                     if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript;
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
                     }
                 }
+                
+                // Update transcript overlay
+                this.updateTranscriptOverlay(finalTranscript, interimTranscript);
                 
                 if (finalTranscript) {
                     this.processCommand(finalTranscript.trim());
@@ -533,9 +676,19 @@
                     this.togglePanel();
                 }
                 
-                // Escape to stop
-                if (e.key === 'Escape' && this.isListening) {
-                    this.stop();
+                // Ctrl+Shift+T to toggle transcript overlay
+                if (e.ctrlKey && e.shiftKey && e.key === 'T') {
+                    e.preventDefault();
+                    this.toggleTranscriptOverlay();
+                }
+                
+                // Escape to stop or hide transcript
+                if (e.key === 'Escape') {
+                    if (this.isListening) {
+                        this.stop();
+                    } else if (this.elements.transcriptOverlay.classList.contains('show')) {
+                        this.hideTranscriptOverlay();
+                    }
                 }
             });
             
@@ -633,6 +786,15 @@
                 setTimeout(() => {
                     this.elements.widget.style.display = '';
                 }, 5000);
+            } else if (cmd.includes('show transcript') || cmd.includes('transcript')) {
+                this.showTranscriptOverlay();
+                this.showFeedback('Transcript overlay shown');
+            } else if (cmd.includes('hide transcript')) {
+                this.hideTranscriptOverlay();
+                this.showFeedback('Transcript overlay hidden');
+            } else if (cmd.includes('clear transcript')) {
+                this.clearTranscript();
+                this.showFeedback('Transcript cleared');
             }
             
             // Default: type the command
@@ -905,6 +1067,84 @@
             this.toggle();
         }
         
+        // Transcript overlay methods
+        showTranscriptOverlay() {
+            this.elements.transcriptOverlay.classList.add('show');
+        }
+        
+        hideTranscriptOverlay() {
+            this.elements.transcriptOverlay.classList.remove('show');
+        }
+        
+        toggleTranscriptOverlay() {
+            if (this.elements.transcriptOverlay.classList.contains('show')) {
+                this.hideTranscriptOverlay();
+            } else {
+                this.showTranscriptOverlay();
+            }
+        }
+        
+        updateTranscriptOverlay(finalTranscript, interimTranscript) {
+            const content = document.getElementById('vb-transcript-content');
+            if (!content) return;
+            
+            // Clear existing interim text
+            const existingInterim = content.querySelector('.vb-transcript-interim');
+            if (existingInterim) {
+                existingInterim.remove();
+            }
+            
+            // Add final transcript if we have it
+            if (finalTranscript) {
+                const finalDiv = document.createElement('div');
+                finalDiv.className = 'vb-transcript-text';
+                finalDiv.innerHTML = `
+                    <span class="vb-transcript-final">${finalTranscript}</span>
+                    <span class="vb-transcript-timestamp">${new Date().toLocaleTimeString()}</span>
+                `;
+                content.appendChild(finalDiv);
+                
+                // Check if this looks like a command
+                const isCommand = this.isCommandLike(finalTranscript);
+                if (isCommand) {
+                    finalDiv.querySelector('.vb-transcript-final').className = 'vb-transcript-command';
+                }
+            }
+            
+            // Add interim transcript if we have it
+            if (interimTranscript) {
+                const interimDiv = document.createElement('div');
+                interimDiv.className = 'vb-transcript-text vb-transcript-interim';
+                interimDiv.innerHTML = `<span class="vb-transcript-interim">${interimTranscript}</span>`;
+                content.appendChild(interimDiv);
+            }
+            
+            // Auto-scroll to bottom
+            content.scrollTop = content.scrollHeight;
+            
+            // Limit the number of transcript entries
+            const transcriptEntries = content.querySelectorAll('.vb-transcript-text:not(.vb-transcript-interim)');
+            if (transcriptEntries.length > 10) {
+                transcriptEntries[0].remove();
+            }
+        }
+        
+        isCommandLike(text) {
+            const commands = [
+                'scroll', 'click', 'type', 'clear', 'submit', 'back', 'forward', 
+                'refresh', 'search', 'save', 'find', 'ask', 'analyze', 'explain',
+                'help', 'hide', 'show', 'go to', 'new tab'
+            ];
+            return commands.some(cmd => text.toLowerCase().includes(cmd));
+        }
+        
+        clearTranscript() {
+            const content = document.getElementById('vb-transcript-content');
+            if (content) {
+                content.innerHTML = '';
+            }
+        }
+        
         // Neo4j integration methods
         async loadModules() {
             // Load Neo4j module
@@ -1034,5 +1274,12 @@
         }
         window.vbDesktop = new VoiceBrainDesktop(config);
     };
+    
+    // Initialize when loaded
+    if (typeof window.initVoiceBrain === 'undefined') {
+        window.initVoiceBrain = function(config) {
+            window.vbDesktop = new VoiceBrainDesktop(config);
+        };
+    }
     
 })();
