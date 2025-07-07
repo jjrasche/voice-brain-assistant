@@ -12,6 +12,7 @@
             version: '1.0.0',
             description: 'Query and update your Neo4j second brain knowledge graph',
             author: 'Voice Brain',
+            lastUpdated: '2024-12-19 14:30:00 UTC',
             
             // Tell the LLM how to use this module
             usage: {
@@ -113,7 +114,7 @@
                 this.config = { ...this.config, ...window.NEO4J_CONFIG };
             }
             
-            console.log('Neo4j Second Brain initializing...');
+            console.log(`📊 Neo4j Second Brain v${this.metadata.version} initializing - Updated: ${this.metadata.lastUpdated}`);
             
             // Test connection
             try {

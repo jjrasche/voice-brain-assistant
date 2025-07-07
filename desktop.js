@@ -2,8 +2,15 @@
 (function() {
     'use strict';
     
+    // Version info
+    const VERSION = '1.2.0';
+    const LAST_UPDATED = '2024-12-19 14:30:00 UTC';
+    
     // Prevent multiple instances
     if (window.vbDesktop) return;
+    
+    // Log version info
+    console.log(`🧠 Voice Brain Desktop v${VERSION} - Updated: ${LAST_UPDATED}`);
     
     // Configuration
     const CONFIG = {
@@ -35,11 +42,15 @@
         }
         
         init() {
+            console.log(`🔥 Voice Brain Desktop v${VERSION} initializing...`);
             this.injectStyles();
             this.createUI();
             this.setupRecognition();
             this.bindEvents();
             this.loadModules();
+            
+            // Show version notification
+            this.showVersionNotification();
             
             // Auto-start
             setTimeout(() => this.start(), 500);
@@ -1262,6 +1273,22 @@
                 this.showFeedback('Schema loaded', 3000);
             }
         }
+        
+        showVersionNotification() {
+            // Show version in console
+            console.log(`📦 Voice Brain Desktop v${VERSION} - Last updated: ${LAST_UPDATED}`);
+            
+            // Show temporary notification
+            this.showFeedback(`Voice Brain v${VERSION} loaded - Updated: ${LAST_UPDATED.split(' ')[0]}`, 4000);
+            
+            // Update status bar if available
+            setTimeout(() => {
+                const statusText = this.elements.panel?.querySelector('.vb-status-text');
+                if (statusText) {
+                    statusText.textContent = `v${VERSION} - Ready`;
+                }
+            }, 1000);
+        },
     }
     
     // Initialize

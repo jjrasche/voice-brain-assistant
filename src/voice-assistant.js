@@ -2,7 +2,13 @@
 (function() {
     'use strict';
     
+    // Version info
+    const VERSION = '1.0.0';
+    const LAST_UPDATED = '2024-12-19 14:30:00 UTC';
+    
     if (window.vbAssistant) return;
+    
+    console.log(`🎤 Voice Assistant v${VERSION} - Updated: ${LAST_UPDATED}`);
     
     const CONFIG = {
         ai: {
@@ -216,5 +222,5 @@
     createUI();
     startListening();
     
-    console.log('Voice Assistant loaded! Say "help" for commands.');
+    console.log(`Voice Assistant v${VERSION} loaded! Say "help" for commands.`);
 })();

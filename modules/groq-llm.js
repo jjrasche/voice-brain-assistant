@@ -12,6 +12,7 @@
             version: '1.0.0',
             description: 'Groq LLM integration for intelligent voice commands',
             author: 'Voice Brain',
+            lastUpdated: '2024-12-19 14:30:00 UTC',
             
             usage: {
                 description: 'Send prompts to Groq LLM and get intelligent responses',
@@ -75,7 +76,7 @@
                 return { success: false, error: 'No API key' };
             }
             
-            console.log('Groq LLM module initialized');
+            console.log(`🤖 Groq LLM module v${this.metadata.version} initialized - Updated: ${this.metadata.lastUpdated}`);
             return { success: true };
         },
         

@@ -150,6 +150,12 @@
         let wakeLock = null;
         let silentAudio = null;
         
+        // Version info
+        const VERSION = '1.0.0';
+        const LAST_UPDATED = '2024-12-19 14:30:00 UTC';
+        
+        console.log(`🧠 Voice Brain PWA v${VERSION} - Updated: ${LAST_UPDATED}`);
+        
         // Service Worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js');
@@ -391,8 +397,11 @@
         if (window.matchMedia('(display-mode: standalone)').matches) {
             setTimeout(() => {
                 updateStatus('🚀 PWA Mode Active');
+                console.log(`🚀 Voice Brain PWA v${VERSION} running in standalone mode`);
                 startKeepAlive();
             }, 1000);
+        } else {
+            console.log(`🌐 Voice Brain PWA v${VERSION} running in browser mode`);
         }
     </script>
 </body>

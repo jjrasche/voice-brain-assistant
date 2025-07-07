@@ -1,5 +1,10 @@
 ﻿// sw.js - Service Worker with advanced features
 const CACHE_NAME = 'voice-brain-v1';
+const SW_VERSION = '1.0.0';
+const LAST_UPDATED = '2024-12-19 14:30:00 UTC';
+
+console.log(`🔧 Voice Brain Service Worker v${SW_VERSION} - Updated: ${LAST_UPDATED}`);
+
 const urlsToCache = [
   '/',
   '/index.html',
