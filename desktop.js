@@ -35,6 +35,9 @@
             this.config = { ...CONFIG, ...config };
             this.recognition = null;
             this.isListening = false;
+            this.isRestarting = false;
+            this.restartAttempts = 0;
+            this.maxRestartAttempts = 3;
             this.silentAudio = null;
             this.elements = {};
             
@@ -349,20 +352,20 @@
                     position: fixed;
                     top: 10px;
                     right: 10px;
-                    width: 350px;
+                    width: 500px;
                     height: 200px;
-                    background: rgba(0, 0, 0, 0.95);
+                    background: rgba(0, 0, 0, 1);
                     color: white;
                     padding: 10px;
                     border-radius: 8px;
                     border: 2px solid #4a90e2;
                     font-family: -apple-system, system-ui, sans-serif;
-                    font-size: 10px;
-                    line-height: 1.2;
+                    font-size: 11px;
+                    line-height: 1.3;
                     z-index: 999998;
                     overflow-y: auto;
-                    opacity: 0;
-                    transform: translateY(-20px);
+                    opacity: 1;
+                    transform: translateY(0);
                     transition: all 0.3s ease;
                     pointer-events: all;
                     box-shadow: 0 5px 20px rgba(0,0,0,0.8);
@@ -639,6 +642,8 @@
                     try {
                         this.debugLog('🎤 Recognition started');
                         this.isListening = true;
+                        this.isRestarting = false;
+                        this.restartAttempts = 0;
                         this.elements.orb.classList.add('listening');
                         this.elements.transcriptOverlay.classList.add('listening');
                         this.showTranscriptOverlay();
@@ -657,15 +662,28 @@
                         this.elements.transcriptOverlay.classList.remove('listening');
                         this.stopKeepAlive();
                         
-                        // Auto-restart if configured
-                        if (this.config.keepAlive) {
-                            this.debugLog('🔄 Auto-restarting in 500ms...');
+                        // Auto-restart with backoff if configured
+                        if (this.config.keepAlive && !this.isRestarting && this.restartAttempts < this.maxRestartAttempts) {
+                            this.isRestarting = true;
+                            this.restartAttempts++;
+                            const delay = Math.min(1000 * this.restartAttempts, 5000);
+                            this.debugLog(`🔄 Auto-restarting in ${delay}ms... (attempt ${this.restartAttempts}/${this.maxRestartAttempts})`);
+                            
                             setTimeout(() => {
-                                if (document.hasFocus() && !this.isListening) {
-                                    this.debugLog('🔄 Attempting restart...');
-                                    this.start();
+                                try {
+                                    if (document.hasFocus() && !this.isListening && this.isRestarting) {
+                                        this.debugLog('🔄 Attempting restart...');
+                                        this.start();
+                                    }
+                                } catch (error) {
+                                    this.debugLog('❌ Error in restart attempt: ' + error.message);
+                                    this.isRestarting = false;
                                 }
-                            }, 500);
+                            }, delay);
+                        } else if (this.restartAttempts >= this.maxRestartAttempts) {
+                            this.debugLog('❌ Max restart attempts reached, stopping auto-restart');
+                            this.isRestarting = false;
+                            this.showFeedback('❌ Voice recognition stopped after multiple attempts');
                         }
                     } catch (error) {
                         this.debugLog('❌ Error in onend: ' + error.message);
@@ -702,7 +720,22 @@
                 this.recognition.onerror = (event) => {
                     try {
                         this.debugLog('❌ Recognition error: ' + event.error);
-                        if (event.error !== 'no-speech') {
+                        
+                        // Handle specific error types
+                        if (event.error === 'aborted') {
+                            this.debugLog('🛑 Recognition was aborted - stopping restart attempts');
+                            this.isRestarting = false;
+                            this.restartAttempts = this.maxRestartAttempts; // Prevent further restarts
+                            this.showFeedback('❌ Voice recognition aborted');
+                        } else if (event.error === 'not-allowed') {
+                            this.debugLog('🚫 Microphone permission denied');
+                            this.isRestarting = false;
+                            this.showFeedback('❌ Microphone permission denied');
+                        } else if (event.error === 'no-speech') {
+                            this.debugLog('🔇 No speech detected');
+                            // Don't show feedback for no-speech errors
+                        } else {
+                            this.debugLog('❌ Other recognition error: ' + event.error);
                             this.showFeedback('❌ ' + event.error);
                         }
                     } catch (error) {
@@ -981,23 +1014,43 @@
         start() {
             try {
                 this.debugLog('🚀 Starting voice recognition...');
-                if (this.recognition && !this.isListening) {
-                    this.debugLog('🎯 Calling recognition.start()');
-                    this.recognition.start();
-                } else if (this.isListening) {
+                
+                // Prevent multiple instances
+                if (this.isListening) {
                     this.debugLog('⚠️ Already listening, skipping start');
-                } else {
-                    this.debugLog('❌ No recognition object available');
+                    return;
                 }
+                
+                if (this.isRestarting && this.restartAttempts >= this.maxRestartAttempts) {
+                    this.debugLog('⚠️ Max restart attempts reached, skipping start');
+                    return;
+                }
+                
+                if (!this.recognition) {
+                    this.debugLog('❌ No recognition object available');
+                    return;
+                }
+                
+                this.debugLog('🎯 Calling recognition.start()');
+                this.recognition.start();
+                
             } catch (error) {
                 this.debugLog('❌ Error starting recognition: ' + error.message);
                 this.showFeedback('❌ Failed to start listening');
+                
+                // Reset restart flag on error
+                this.isRestarting = false;
             }
         }
         
         stop() {
             try {
                 this.debugLog('🛑 Stopping voice recognition...');
+                
+                // Stop any restart attempts
+                this.isRestarting = false;
+                this.restartAttempts = 0;
+                
                 if (this.recognition && this.isListening) {
                     this.debugLog('🎯 Calling recognition.stop()');
                     this.recognition.stop();
@@ -1027,24 +1080,29 @@
         
         // Add debug logging function
         debugLog(message) {
-            console.log(`[VB Debug] ${message}`);
+            const timestamp = new Date().toLocaleTimeString();
+            console.log(`[VB Debug ${timestamp}] ${message}`);
             
             // Also add to transcript overlay for visual debugging
             if (this.elements?.transcriptOverlay) {
-                const content = document.getElementById('vb-transcript-content');
-                if (content) {
-                    const debugDiv = document.createElement('div');
-                    debugDiv.className = 'vb-debug-text';
-                    debugDiv.style.cssText = 'color: #666; font-size: 10px; margin-bottom: 5px;';
-                    debugDiv.innerHTML = `<span style="color: #999">${new Date().toLocaleTimeString()}</span> ${message}`;
-                    content.appendChild(debugDiv);
-                    content.scrollTop = content.scrollHeight;
-                    
-                    // Limit debug entries
-                    const debugEntries = content.querySelectorAll('.vb-debug-text');
-                    if (debugEntries.length > 20) {
-                        debugEntries[0].remove();
+                try {
+                    const content = document.getElementById('vb-transcript-content');
+                    if (content) {
+                        const debugDiv = document.createElement('div');
+                        debugDiv.className = 'vb-debug-text';
+                        debugDiv.style.cssText = 'color: #666; font-size: 10px; margin-bottom: 5px; font-family: monospace;';
+                        debugDiv.innerHTML = `<span style="color: #999">${timestamp}</span> ${message}`;
+                        content.appendChild(debugDiv);
+                        content.scrollTop = content.scrollHeight;
+                        
+                        // Limit debug entries
+                        const debugEntries = content.querySelectorAll('.vb-debug-text');
+                        if (debugEntries.length > 30) {
+                            debugEntries[0].remove();
+                        }
                     }
+                } catch (error) {
+                    console.error('Error adding debug message to transcript:', error);
                 }
             }
         }
@@ -1206,8 +1264,12 @@
         
         updateTranscriptOverlay(finalTranscript, interimTranscript) {
             try {
+                this.debugLog('📝 Updating transcript overlay...');
                 const content = document.getElementById('vb-transcript-content');
-                if (!content) return;
+                if (!content) {
+                    this.debugLog('❌ Transcript content element not found');
+                    return;
+                }
                 
                 // Clear existing interim text
                 const existingInterim = content.querySelector('.vb-transcript-interim');
